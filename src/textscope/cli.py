@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from . import __version__
 from . import detect as detect_mod
 from . import llm as llm_mod
 from .clean import clean_text
@@ -192,7 +193,11 @@ def _check_file(path: str, json_out: bool) -> None:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="textscope", description="Clean & rewrite text for AI-detection evasion.")
+    parser = argparse.ArgumentParser(
+        prog="textscope",
+        description="Clean & rewrite text for AI-detection evasion.",
+    )
+    parser.add_argument("--version", action="version", version=f"textscope {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     for name in ("clean", "rewrite"):

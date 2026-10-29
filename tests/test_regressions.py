@@ -159,3 +159,15 @@ def test_docx_rewrite_keeps_protected_text():
     assert "https://example.com/x" in texts[1]
     assert "Moreover" not in texts[0]
     assert docx_text(original).splitlines()[0].startswith("Moreover")
+
+
+def test_version_flag(capsys):
+    from textscope import __version__
+    from textscope.cli import main
+
+    try:
+        main(["--version"])
+    except SystemExit as exc:
+        assert exc.code == 0
+    out = capsys.readouterr().out
+    assert __version__ in out

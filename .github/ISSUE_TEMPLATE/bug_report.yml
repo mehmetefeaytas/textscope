@@ -1,0 +1,107 @@
+name: Bug report
+description: Report a crash, damaged output, a protected-zone violation, or an incorrect rewrite.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Do not paste a private manuscript, unpublished data, or anything you
+        cannot share publicly.** A single redacted sentence that reproduces the
+        issue is far more useful than a full document. If the input cannot be
+        shared, describe its structure instead.
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      description: The exact command line, including the subcommand and every flag.
+      placeholder: |
+        textscope rewrite paper.tex --profile balanced --seed 3 --lang en -o out.tex
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: textscope version
+      description: |
+        Output of `textscope --version`. If that flag is not available in your
+        build, use `python -c "import textscope; print(textscope.__version__)"`
+        and say which command you ran.
+      placeholder: "0.4.0"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python --version` for the interpreter that runs textscope.
+      placeholder: "3.12.4"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: OS and version, and whether you run from a checkout or an installed package.
+      placeholder: "macOS 15.1, running from a git checkout with uv"
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input that reproduces the problem
+      description: |
+        The smallest snippet that triggers the bug. Redact names, emails, URLs
+        and private text before pasting. Preserve the surrounding markup (line
+        breaks, fences, LaTeX commands) if it matters.
+      placeholder: |
+        In today's rapidly evolving landscape, it is important to note that ...
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect the output (or exit code) to be?
+      placeholder: The sentence should keep "42%" and the citation, and read naturally.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: |
+        What happened instead? Paste the relevant output or the `--diff` hunk.
+        If the command aborted, include the full stderr message and exit code.
+      placeholder: |
+        ABORT: protected zone violation: ['protected span 2 changed']
+        exit code: 2
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: protected
+    attributes:
+      label: Were protected zones affected?
+      description: |
+        Protected zones include code, math, LaTeX commands, URLs, numbers,
+        citations, front matter, tables and similar constructs. A change without
+        an abort is a security-relevant bug; see SECURITY.md.
+      options:
+        - "No"
+        - "Yes — a protected span changed"
+        - "Yes — the command aborted with exit code 2"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps — related issues, whether it is reproducible with `--seed`, or a workaround.
+    validations:
+      required: false

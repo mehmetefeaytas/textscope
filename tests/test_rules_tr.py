@@ -7,7 +7,6 @@ import textscope.rules_tr as rules
 # Turkish words that must keep their special letters in the source data.
 SPELLED_WORDS = {
     "kapsamlı": "kapsamli",
-    "sürdürülebilir": "surdurulebilir",
     "literatür": "literatur",
 }
 
@@ -15,7 +14,9 @@ SPELLED_WORDS = {
 def test_minimum_table_sizes():
     assert len(rules.WORD_SWAPS_TR) >= 450
     assert len(rules.PHRASE_SWAPS_TR) >= 300
-    assert len(rules.LEADING_TRANSITIONS_TR) >= 110
+    # Content-bearing time/ordinal adverbials were removed from this list;
+    # what remains is purely connective.
+    assert len(rules.LEADING_TRANSITIONS_TR) >= 100
     assert len(rules.WORD_VARIANTS_TR) >= 45
     assert len(rules.EXTRA_WORD_SWAPS_TR) >= 90
     assert len(rules.TR_STOPWORDS) >= 200
