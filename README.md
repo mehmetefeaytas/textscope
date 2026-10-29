@@ -12,9 +12,11 @@ Zero runtime dependencies. Python 3.10+. Managed with `uv`.
 - **clean**: purge zero-width/Cf characters, NFC normalize, fix ligatures, normalize whitespace, dashes and quotes.
 - **rewrite**: deterministic word/sentence-level rewrite. `--strict` keeps the word count exactly (delta = 0).
 - **Structure-safe**: line breaks, blank lines and paragraph layout survive; rewriting happens per line, never as a document-wide reflow.
-- **Protected zones**: code, math, `\cite{}`, URLs, numbers, string literals never change. SHA-256 verified before/after; on violation the write is aborted. LaTeX environments are matched with a stack, so nesting and `\begin{document}` work.
-- **English**: 200 word swaps, 73 phrase swaps, 48 leading transitions, 45 contractions, plus `a/an` repair and irregular-verb agreement (`have shown`, not `have showed`).
-- **Turkish**: 67 word swaps, 57 phrase swaps, 37 transitions, and suffix-aware verb softening: `-mektedir` → `-yor`, `-mıştır` → `-di`, `-acaktır` → `-acak`, `-malıdır` → `-malı`. Language detection works even on ASCII-only Turkish (`Bu calisma ...`).
+- **Protected zones**: code, math, `\cite{}`, URLs, numbers, string literals never change. SHA-256 verified before/after; on violation the write is aborted. LaTeX environments are matched with a stack, so nesting and `\begin{document}` work. Also protected: YAML front matter, markdown tables, HTML tags and comments, markdown link destinations, `[1]`/`[4-6]` citation markers, `(Smith et al., 2020)` author-year citations, LaTeX `%` comments (only at line start, so `42%` stays prose).
+- **English** (626 word swaps, 184 phrase swaps, 73 transitions, 65 contractions): `a/an` repair, irregular-verb agreement (`have shown`, not `have showed`), repeated-starter cleanup. Statistical terms (`significant`, `correlation`, `variable`, `qualitative`) are deliberately left alone so findings keep their meaning.
+- **Turkish** (213 word swaps, 141 phrase swaps, 54 transitions): suffix-aware verb softening (`-mektedir` → `-yor`, `-mıştır` → `-di`, `-acaktır` → `-acak`, `-malıdır` → `-malı`) with vowel harmony and t→d handling, plus light-verb phrase rules (`analiz edilmesini` → `incelenmesini`). Language detection works even on ASCII-only Turkish (`Bu calisma ...`).
+- **Rule data is testable**: rules live in `rules_en.py` / `rules_tr.py` as plain data, guarded by integrity tests (no duplicate keys, no no-op swaps, every regex compiles, no synonym chains, correct Turkish orthography).
+- **Code files**: a character scanner rewrites only comments and docstrings — trailing comments included — and never touches strings, URLs with `#fragment`, or shebangs.
 - **CLI**: `clean | rewrite | check | serve`, `--dry-run`, `--diff`, `--json` report, `--seed` (variation), `--profile`.
 - **Metrics**: burstiness, type-token ratio, entropy, AI-pattern hit count.
 
@@ -116,10 +118,16 @@ The following are never modified and are SHA-256 verified:
 
 - Fenced and inline code
 - Math (`$...$`, `$$...$$`, `\[...\]`, `\(...\)`)
-- LaTeX commands (`\cite{}`, `\ref{}`, `\label{}`, ...)
+- LaTeX commands (`\cite{}`, `\ref{}`, `\label{}`, ...) and LaTeX environments
 - URLs and emails
 - Numbers
 - Source-code string literals (only comments/docstrings are rewritten in code files)
+- YAML/TOML front matter at the start of a document
+- Markdown table rows, and the destination half of `[text](target)`
+- HTML/XML tags and `<!-- comments -->`
+- Citation markers `[1]`, `[2, 3]`, `[4-6]`
+- Author-year citations such as `(Smith et al., 2020)` and `Smith et al. (2020)`
+- LaTeX `%` line comments — only when `%` starts the line, so `42% of students` stays prose
 
 If any protected span changes, the command aborts with exit code 2 and writes nothing.
 
@@ -146,6 +154,10 @@ Be honest about what this does and does not do:
 uv sync --group dev
 uv run pytest
 ```
+
+101 tests covering the rewriter, protected zones, code-comment handling, and the
+rule-data integrity (duplicate keys, no-op swaps, regex compilation, synonym chains,
+Turkish orthography).
 
 CI runs on Python 3.10–3.14 (see `.github/workflows/ci.yml`).
 

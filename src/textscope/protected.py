@@ -19,6 +19,9 @@ _UNPROTECTED_ENVS = {"document"}
 _LATEX_ENV_TOKEN = re.compile(r"\\(begin|end)\{([^}]+)\}")
 
 _PROTECTED_RES = [
+    # YAML/TOML front matter is only valid at the very start of the document.
+    ("front_matter", re.compile(r"\A---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?=\r?\n|\Z)")),
+    ("html_comment", re.compile(r"<!--[\s\S]*?-->")),
     ("fence", re.compile(r"```[\s\S]*?```", re.MULTILINE)),
     ("math_display", re.compile(r"\$\$[\s\S]*?\$\$")),
     ("math_bracket", re.compile(r"\\\[[\s\S]*?\\\]")),
@@ -33,6 +36,27 @@ _PROTECTED_RES = [
         r"\\(?:cite|citet|citep|ref|eqref|label|bibliography|includegraphics|input|include|usepackage|documentclass|begin|end|section|subsection|subsubsection|title|author|date|maketitle|newcommand|renewcommand|frac|sqrt|sum|int|lim|intertext|text|mathrm|mathbf|mathit|mathcal|left|right|Big|big|Bigg|bigg|times|cdot|ldots|cdots|dots|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|pi|omega|rho|phi|psi|tau|nu|xi|zeta|eta|kappa|upsilon|chi|iota|partial|nabla|infty|forall|exists|in|subset|subseteq|supset|supseteq|cup|cap|setminus|emptyset|varnothing|approx|neq|leq|geq|equiv|cong|sim|propto|to|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|mapsto|implies|iff|land|lor|neg|wedge|vee|cdot|times|div|pm|mp|circ|bullet|star|dagger|ddagger)\b(?:\[[^\]]*\])*(?:\{[^}]*\})*"
     )),
     ("latex_backslash", re.compile(r"\\[a-zA-Z]+")),
+    # A "%" is only treated as a LaTeX comment when it starts the line. Treating
+    # every "%" as a comment would swallow prose like "42% of students".
+    ("latex_comment", re.compile(r"^[ \t]*%.*$", re.MULTILINE)),
+    # Markdown table rows: keep pipes and alignment intact.
+    ("md_table", re.compile(r"^[ \t]*\|[^\n]*$", re.MULTILINE)),
+    # Markdown inline links/images: protect the destination only.
+    ("md_link_target", re.compile(r"(?<=\])\([^)\s]+\)")),
+    # Reference-style citations: [1], [12], [1, 2], [1-3].
+    ("citation_index", re.compile(r"\[\d{1,3}(?:\s*[-,–]\s*\d{1,3})*\]")),
+    # Author-year citations: (Smith, 2020), (Smith et al., 2020), (Smith & Jones 2019).
+    ("citation_year", re.compile(
+        r"\([A-ZÇĞİÖŞÜ][\wçğıöşü'.-]+"
+        r"(?:\s+(?:et\s+al\.?|ve\s+ark\.?|&\s*[A-ZÇĞİÖŞÜ][\wçğıöşü'.-]+"
+        r"|and\s+[A-ZÇĞİÖŞÜ][\wçğıöşü'.-]+))"
+        r"*\s*,\s*\d{4}[a-z]?\)"
+    )),
+    ("citation_year_narrative", re.compile(
+        r"\b[A-ZÇĞİÖŞÜ][\wçğıöşü'.-]+\s+et\s+al\.\s*\(\d{4}[a-z]?\)"
+    )),
+    # HTML/XML tags (opening, closing, self-closing); escaped "\<" is not a tag.
+    ("html_tag", re.compile(r"(?<!\\)</?[A-Za-z][A-Za-z0-9:_-]*(?:\s+[^<>]*)?/?>")),
     ("number", re.compile(r"\b\d[\d,\.]*\b")),
 ]
 

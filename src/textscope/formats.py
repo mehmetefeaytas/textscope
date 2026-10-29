@@ -42,24 +42,82 @@ def write_text_file(path: str, content: str) -> None:
 # ---------- code: only comments/docstrings rewritten ----------
 
 def _rewrite_code(text: str, transform: Callable[[str], str]) -> str:
-    # Handle Python docstrings and # comments; JS/TS // and /* */; C-style; generic # and //
-    # We'll implement a state machine for strings and comments.
-    # Simpler: regex replace comments.
-    # Python triple-quoted docstrings
-    def repl_triple(m):
-        quote = m.group(1)
-        body = m.group(2)
-        return quote + transform(body) + quote
-    text = re.sub(r'("""|\'\'\')([\s\S]*?)\1', repl_triple, text)
-    # Line comments starting with # (python, shell, ruby) - but careful with shebang
-    def repl_hash(m):
-        return m.group(1) + transform(m.group(2))
-    text = re.sub(r"(^|\n)([ \t]*#[^\n]*)", lambda m: m.group(1) + _transform_hash_line(m.group(2), transform), text)
-    # // line comments
-    text = re.sub(r"(//)([^\n]*)", lambda m: m.group(1) + transform(m.group(2)), text)
-    # /* */ block comments
-    text = re.sub(r"(/\*)([\s\S]*?)(\*/)", lambda m: m.group(1) + transform(m.group(2)) + m.group(3), text)
-    return text
+    """Rewrite only comments and docstrings, leaving code and strings alone.
+
+    A character scanner is used instead of regexes so that a ``#`` inside a
+    string literal, a URL, or a shebang is never mistaken for a comment. Trailing
+    comments (``return x  # note``) are rewritten too, which the old
+    line-start-only regex missed.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    line_start = True
+
+    while i < n:
+        # shebang line: copy verbatim
+        if line_start and text.startswith("#!", i):
+            end = text.find("\n", i)
+            end = n if end == -1 else end
+            out.append(text[i:end])
+            i = end
+            continue
+
+        if text.startswith('"""', i) or text.startswith("'''", i):
+            quote = text[i:i + 3]
+            end = text.find(quote, i + 3)
+            if end == -1:
+                out.append(text[i:])
+                break
+            out.append(quote + transform(text[i + 3:end]) + quote)
+            i = end + 3
+            continue
+
+        ch = text[i]
+
+        if ch in "\"'":
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == ch:
+                    j += 1
+                    break
+                if text[j] == "\n":
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
+            continue
+
+        if ch == "#":
+            end = text.find("\n", i)
+            end = n if end == -1 else end
+            out.append("#" + transform(text[i + 1:end]))
+            i = end
+            continue
+
+        if text.startswith("//", i):
+            end = text.find("\n", i)
+            end = n if end == -1 else end
+            out.append("//" + transform(text[i + 2:end]))
+            i = end
+            continue
+
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            closed = end != -1
+            stop = n if end == -1 else end
+            out.append("/*" + transform(text[i + 2:stop]) + ("*/" if closed else ""))
+            i = stop + (2 if closed else 0)
+            continue
+
+        out.append(ch)
+        line_start = ch == "\n"
+        i += 1
+
+    return "".join(out)
 
 
 def _transform_hash_line(line: str, transform: Callable[[str], str]) -> str:

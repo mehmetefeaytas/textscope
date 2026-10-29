@@ -98,8 +98,8 @@ def test_turkish_output_is_readable():
 
 def test_english_expanded_word_swaps():
     out = rewrite_text("This demonstrates how we obtain numerous benefits.")
-    assert "shows" in out
-    assert "get" in out
+    assert "demonstrates" not in out
+    assert "obtain" not in out
     assert "numerous" not in out
 
 
