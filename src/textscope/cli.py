@@ -202,6 +202,7 @@ def main(argv=None) -> int:
         sp.add_argument("--seed", type=int, default=0)
         sp.add_argument("--lang", default="auto", choices=["auto", "en", "tr"], help="language")
         sp.add_argument("--profile", default="balanced", choices=["conservative", "balanced", "aggressive"], help="rewrite profile")
+        sp.add_argument("--in-place", action="store_true", help="overwrite input file")
         sp.add_argument("--llm", default=None, help="LLM backend, e.g. openai:gpt-4o-mini (requires extra)")
         if name == "rewrite":
             sp.add_argument("--strict", action="store_true", help="preserve word count exactly")
@@ -231,6 +232,10 @@ def main(argv=None) -> int:
 
     strict = getattr(args, "strict", False)
     input_path = args.input
+    if getattr(args, 'in_place', False) and not os.path.isdir(input_path):
+        import shutil
+        shutil.copy2(input_path, input_path + ".bak")
+        args.output = input_path
     if os.path.isdir(input_path):
         _process_directory(input_path, args.output, args.cmd, strict, args.seed,
                            args.dry_run, args.diff, args.json_report,
