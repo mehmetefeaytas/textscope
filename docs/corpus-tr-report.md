@@ -237,7 +237,7 @@ $ .venv/bin/python -m ruff check src tests           # All checks passed!
 To reproduce the scan table:
 
 ```
-cd /Users/mehmetefeaytas/textscope
+cd textscope
 .venv/bin/python -c "
 import sys; sys.path.insert(0, 'tests')
 from corpus_tr_academic import SAMPLES
