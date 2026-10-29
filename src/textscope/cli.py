@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from . import detect as detect_mod
 from . import llm as llm_mod
 from .clean import clean_text
 from .diff import unified_diff
@@ -209,10 +210,23 @@ def main(argv=None) -> int:
     csp.add_argument("input", help="file")
     csp.add_argument("--json", action="store_true", dest="json_report")
 
+    dsp = sub.add_parser("detect")
+    dsp.add_argument("input", help="file")
+    dsp.add_argument("--json", action="store_true", dest="json_report")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "check":
         _check_file(args.input, args.json_report)
+        return 0
+
+    if args.cmd == "detect":
+        text = read_text_file(args.input)
+        res = detect_mod.detect(text)
+        if args.json_report:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
         return 0
 
     strict = getattr(args, "strict", False)
