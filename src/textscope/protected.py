@@ -14,6 +14,7 @@ class Span:
 
 _PROTECTED_RES = [
     ("fence", re.compile(r"```[\s\S]*?```", re.MULTILINE)),
+    ("latex_env", re.compile(r"\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}")),
     ("math_display", re.compile(r"\$\$[\s\S]*?\$\$")),
     ("math_bracket", re.compile(r"\\\[[\s\S]*?\\\]")),
     ("math_paren", re.compile(r"\\\([\s\S]*?\\\)", re.DOTALL)),
