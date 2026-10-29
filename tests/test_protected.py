@@ -1,4 +1,4 @@
-from textscope.protected import split_protected, verify_protected, protected_hashes, reassemble
+from textscope.protected import split_protected, verify_protected
 
 
 def test_protected_preserved():
@@ -21,5 +21,5 @@ def test_verify_identical():
 def test_verify_changed_fails():
     text = "Hello 42"
     bad = "Hello 43"
-    ok, errs = verify_protected(text, bad)
+    ok, _errs = verify_protected(text, bad)
     assert not ok

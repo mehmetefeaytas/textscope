@@ -32,8 +32,8 @@ def test_verify_protected_after_rewrite():
 
 
 def test_property_protected_preserved_random():
+
     from textscope.protected import verify_protected
-    import random
     base = "Some prose here with 42 and https://example.com and \\cite{ref} and `code`."
     for seed in range(5):
         out = rewrite_text(base, strict=(seed % 2 == 0), seed=seed)

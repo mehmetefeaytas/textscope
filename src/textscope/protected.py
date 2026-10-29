@@ -85,7 +85,6 @@ def verify_protected(original: str, result: str) -> tuple[bool, list[str]]:
             errors.append(f"protected span {i} changed")
     o_hashes = list(protected_hashes(original).values())
     r_hashes = list(protected_hashes(result).values())
-    if o_hashes != r_hashes:
-        if not errors:
-            errors.append("protected hash mismatch")
+    if o_hashes != r_hashes and not errors:
+        errors.append("protected hash mismatch")
     return len(errors) == 0, errors

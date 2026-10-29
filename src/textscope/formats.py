@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import os
-import zipfile
 import io
 import re
+import zipfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-
-from .protected import split_protected
-
 
 CODE_EXTS = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".c", ".cpp", ".cc", ".h", ".hpp",
              ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".scala", ".sh", ".bash",

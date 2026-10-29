@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import unicodedata
 import re
+import unicodedata
 
-from .protected import split_protected, reassemble, Span
+from .protected import Span, reassemble, split_protected
 
 # Zero-width / format characters to purge
 _ZERO_WIDTH = {
@@ -81,12 +81,10 @@ def clean_text(text: str) -> str:
         cleaned = _clean_free(original)
         prev_protected = (i > 0 and spans[i - 1].protected)
         next_protected = (i + 1 < len(spans) and spans[i + 1].protected)
-        if prev_protected and (original.startswith(" ") or original.startswith("\t")):
-            if not cleaned.startswith((" ", "\t")):
-                cleaned = " " + cleaned
-        if next_protected and (original.endswith(" ") or original.endswith("\t")):
-            if not cleaned.endswith((" ", "\t")):
-                cleaned = cleaned + " "
+        if prev_protected and original.startswith((" ", "\t")) and not cleaned.startswith((" ", "\t")):
+            cleaned = " " + cleaned
+        if next_protected and original.endswith((" ", "\t")) and not cleaned.endswith((" ", "\t")):
+            cleaned = cleaned + " "
         new_spans.append(Span(text=cleaned, protected=False, kind="text"))
     result = reassemble(new_spans)
     # strip trailing spaces at end of each line (safety) but keep protected boundaries already handled

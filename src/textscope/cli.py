@@ -7,12 +7,19 @@ import sys
 from pathlib import Path
 
 from .clean import clean_text
-from .rewrite import rewrite_text
-from .protected import verify_protected, protected_hashes
-from .formats import (detect_format, process_code, process_docx_file, process_docx_bytes,
-                      process_zip_file, read_text_file, write_text_file, CODE_EXTS)
-from .metrics import report as metrics_report
 from .diff import unified_diff
+from .formats import (
+    CODE_EXTS,
+    detect_format,
+    process_code,
+    process_docx_bytes,
+    process_zip_file,
+    read_text_file,
+    write_text_file,
+)
+from .metrics import report as metrics_report
+from .protected import verify_protected
+from .rewrite import rewrite_text
 
 SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".tex", ".docx", ".zip"} | CODE_EXTS
 
@@ -50,7 +57,6 @@ def _process_file(input_path: str, output_path: str | None, cmd: str, strict: bo
         # Process bytes.
         new_data = process_docx_bytes(data, lambda t: transform(t) if False else t)
         # Actually transform docx text nodes:
-        from .formats import _transform_xml_text_nodes
         # redo properly:
         new_data = process_docx_bytes(data, transform)
         if not dry_run:

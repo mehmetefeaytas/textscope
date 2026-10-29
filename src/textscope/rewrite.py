@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import re
 import random
-from .protected import split_protected, reassemble, Span
+import re
+
+from .protected import Span, reassemble, split_protected
 
 # AI-ish word -> human-ish synonym (1:1)
 WORD_SWAPS = {
@@ -49,7 +50,6 @@ WORD_SWAPS = {
     "unlock": "open",
     "unleash": "release",
     "revolutionize": "change",
-    "optimize": "improve",
     "optimize": "improve",
     "furthermore": "also",
     "moreover": "also",
@@ -154,7 +154,7 @@ def _apply_word_swaps(text: str, strict: bool) -> str:
 
 def _apply_phrase_swaps(text: str) -> str:
     for pat, rep in PHRASE_SWAPS:
-        def repl(m):
+        def repl(m, rep=rep):
             return _preserve_case(m.group(0), rep)
         text = re.sub(pat, repl, text, flags=re.IGNORECASE)
     return text
@@ -249,7 +249,7 @@ def _vary_sentence_lengths(text: str) -> str:
         if not s:
             i += 1
             continue
-        if False and i + 1 < len(sentences):
+        if False:
             nxt = sentences[i + 1].strip()
             if nxt:
                 # merge: drop period of s, append nxt with lowercase start
@@ -267,7 +267,7 @@ def _vary_sentence_lengths(text: str) -> str:
 def rewrite_free(text: str, strict: bool = False, seed: int = 0) -> str:
     if not text.strip():
         return text
-    rng = random.Random(seed)
+    random.Random(seed)
     original_text = text
 
     # Word swaps (both modes)
@@ -285,13 +285,11 @@ def rewrite_free(text: str, strict: bool = False, seed: int = 0) -> str:
         pass
 
     # Ensure word count preserved in strict mode
-    if strict:
-        # If somehow changed, revert to original (safety)
+    if strict and len(text.split()) != len(original_text.split()):
+        text = original_text
+        text = _apply_word_swaps(text, strict)
         if len(text.split()) != len(original_text.split()):
             text = original_text
-            text = _apply_word_swaps(text, strict)
-            if len(text.split()) != len(original_text.split()):
-                text = original_text
     return text
 
 
@@ -306,11 +304,9 @@ def rewrite_text(text: str, strict: bool = False, seed: int = 0) -> str:
         cleaned = rewrite_free(original, strict=strict, seed=seed)
         prev_protected = (i > 0 and spans[i - 1].protected)
         next_protected = (i + 1 < len(spans) and spans[i + 1].protected)
-        if prev_protected and (original.startswith(" ") or original.startswith("\t")):
-            if not cleaned.startswith((" ", "\t")):
-                cleaned = " " + cleaned
-        if next_protected and (original.endswith(" ") or original.endswith("\t")):
-            if not cleaned.endswith((" ", "\t")):
-                cleaned = cleaned + " "
+        if prev_protected and original.startswith((" ", "\t")) and not cleaned.startswith((" ", "\t")):
+            cleaned = " " + cleaned
+        if next_protected and original.endswith((" ", "\t")) and not cleaned.endswith((" ", "\t")):
+            cleaned = cleaned + " "
         new_spans.append(Span(text=cleaned, protected=False, kind="text"))
     return reassemble(new_spans)
