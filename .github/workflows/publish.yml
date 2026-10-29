@@ -1,12 +1,21 @@
 name: Publish
 
+# Publishing is manual on purpose. The package is not on PyPI yet, so an
+# automatic run on every `v*` tag would fail. To publish, configure a PyPI
+# trusted publisher for this repository and start the workflow by hand.
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'publish' to confirm the upload to PyPI"
+        required: true
+        default: ""
 
 jobs:
   publish:
+    if: github.event.inputs.confirm == 'publish'
     runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       id-token: write
     steps:
@@ -14,5 +23,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.12"
-      - run: uv build
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Verify the built artefacts
+        run: |
+          uv run --with twine twine check dist/*
+          ls -l dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
