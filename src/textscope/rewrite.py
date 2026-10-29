@@ -167,17 +167,18 @@ def _remove_leading_transitions(text: str) -> str:
     for s in sentences:
         s2 = s
         for tr in LEADING_TRANSITIONS:
-            # match transition at start followed by comma or space
-            m = re.match(r"\s*" + re.escape(tr) + r"\b\s*,?\s*", s2, flags=re.IGNORECASE)
+            # match optional leading whitespace + transition
+            m = re.match(r"(\s*)" + re.escape(tr) + r"\b\s*,?\s*", s2, flags=re.IGNORECASE)
             if m:
-                # remove only if followed by content
+                lead = m.group(1)
                 rest = s2[m.end():]
                 if rest.strip():
-                    # if comma removed, keep space
-                    s2 = rest
-                    # ensure first char capitalized
-                    if s2 and s2[0].islower():
-                        s2 = s2[0].upper() + s2[1:]
+                    s2 = lead + rest
+                    if s2.strip() and s2.strip()[0].islower():
+                        # capitalize first non-space
+                        stripped = s2.lstrip()
+                        idx = len(s2) - len(stripped)
+                        s2 = s2[:idx] + stripped[0].upper() + stripped[1:]
                 break
         out.append(s2)
     return " ".join(out)
@@ -245,12 +246,12 @@ def _vary_sentence_lengths(text: str) -> str:
     out = []
     i = 0
     while i < len(sentences):
-        s = sentences[i].strip()
-        if not s:
+        s = sentences[i]
+        if not s.strip():
             i += 1
             continue
         if False:
-            nxt = sentences[i + 1].strip()
+            nxt = sentences[i + 1]
             if nxt:
                 # merge: drop period of s, append nxt with lowercase start
                 left = s.rstrip(".!?")
