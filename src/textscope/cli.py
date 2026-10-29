@@ -215,6 +215,10 @@ def main(argv=None) -> int:
     dsp.add_argument("input", help="file")
     dsp.add_argument("--json", action="store_true", dest="json_report")
 
+    ssp = sub.add_parser("serve")
+    ssp.add_argument("--host", default="127.0.0.1")
+    ssp.add_argument("--port", type=int, default=8765)
+
     args = parser.parse_args(argv)
 
     if args.cmd == "check":
