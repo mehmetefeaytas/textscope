@@ -300,6 +300,74 @@ _SPLIT_CONJUNCTIONS = (
 )
 
 
+_CLAUSE_STARTERS_EN = frozenset({
+    "it", "this", "that", "these", "those", "they", "we", "you", "he", "she",
+    "there", "its", "their", "our", "his", "her", "i", "one",
+    "however", "but", "so", "yet", "then", "which", "while", "whereas",
+    "although", "though", "because", "since", "and",
+})
+
+_CLAUSE_STARTERS_TR = frozenset({
+    "bu", "bunlar", "bunun", "burada", "o", "onlar", "biz", "siz",
+    "ancak", "fakat", "ama", "çünkü", "dolayısıyla", "böylece", "sonuçta",
+    "yani", "üstelik", "ayrıca", "buna", "bununla", "öte", "diğer",
+})
+
+# A sentence must not be cut right after one of these; the result would be a
+# dangling fragment such as "the study looked at a full."
+_DANGLING_TAIL = frozenset({
+    "a", "an", "the", "of", "in", "on", "at", "for", "to", "with", "by",
+    "from", "as", "and", "or", "but", "that", "which", "than", "into",
+    "over", "under", "between", "bir", "bu", "ve", "ile", "için", "olan",
+    "gibi", "kadar", "ya", "veya", "ama", "hem",
+})
+
+
+_CLAUSE_SUBJECTS_EN = frozenset({
+    "it", "this", "that", "these", "those", "they", "we", "you", "he", "she",
+    "i", "there", "one", "who", "which", "what",
+    "the", "a", "an", "its", "their", "our", "his", "her", "my", "your",
+    "can", "will", "would", "should", "could", "may", "might", "must",
+    "is", "are", "was", "were", "has", "have", "had", "do", "does", "did",
+})
+
+_CLAUSE_SUBJECTS_TR = frozenset({
+    "bu", "bunlar", "bunun", "bununla", "o", "onlar", "biz", "siz", "ben",
+    "ancak", "fakat", "ama", "çünkü", "dolayısıyla", "böylece", "sonuçta",
+    "yani", "üstelik", "ayrıca", "öte", "diğer", "buna", "her", "tüm",
+})
+
+
+def _looks_like_clause_start(right: str, lang: str) -> bool:
+    """True when ``right`` plausibly opens its own clause.
+
+    Guards the conjunction split: "a comprehensive and multifaceted approach"
+    must not become "a full. Complex way", because "complex" is an adjective,
+    not a subject.
+    """
+    first = right.split(maxsplit=1)
+    if not first:
+        return False
+    word = first[0].strip(",;:").lower()
+    subjects = _CLAUSE_SUBJECTS_TR if lang == "tr" else _CLAUSE_SUBJECTS_EN
+    return word in subjects
+
+
+def _clause_starter_ok(right: str, lang: str) -> bool:
+    """True when ``right`` opens a new clause rather than continuing a list.
+
+    This is what stops the splitter from cutting "economic, environmental, and
+    social dimensions" into "... economic. Environmental and social dimensions".
+    After a list comma comes an ordinary noun or adjective, not a clause opener.
+    """
+    first = right.split(maxsplit=1)
+    if not first:
+        return False
+    word = first[0].strip(",;:").lower()
+    starters = _CLAUSE_STARTERS_TR if lang == "tr" else _CLAUSE_STARTERS_EN
+    return word in starters
+
+
 def _split_sentence(sentence: str, min_part: int, lang: str = "en") -> list[str] | None:
     """Split at a conjunction or comma, but only into two real clauses.
 
@@ -324,6 +392,16 @@ def _split_sentence(sentence: str, min_part: int, lang: str = "en") -> list[str]
         left = sentence[:cut_start].strip()
         right = sentence[cut_end:].strip()
         if len(left.split()) < min_part or len(right.split()) < min_part:
+            continue
+        if left.split()[-1].strip(",;:").lower() in _DANGLING_TAIL:
+            continue
+        is_conjunction_cut = sentence[cut_start:cut_end].strip().lower() in {
+            conj.strip() for conj in _SPLIT_CONJUNCTIONS
+        }
+        if not _looks_like_clause_start(right, lang):
+            continue
+        # commas are only trusted when a new clause clearly starts after them
+        if not is_conjunction_cut and not _clause_starter_ok(right, lang):
             continue
         balance = abs(len(left.split()) - len(right.split()))
         if best is None or balance < best[0]:
@@ -350,6 +428,18 @@ def _split_long_sentences(text: str, min_part: int = 6, lang: str = "en") -> str
     return " ".join(out)
 
 
+def _break_chains(swaps: dict[str, str]) -> dict[str, str]:
+    """Drop any swap whose output is itself a key.
+
+    Otherwise a second pass rewrites the result again and the tool is not
+    idempotent: ``framework -> structure -> shape`` changed the text every time
+    it ran. Dropping the first hop keeps the more conservative word, which is
+    also the safer choice for meaning.
+    """
+    keys = set(swaps)
+    return {key: value for key, value in swaps.items() if value not in keys}
+
+
 def _pick_variants(swaps: dict, rng: random.Random, lang: str) -> dict:
     table = WORD_VARIANTS_TR if lang == "tr" else WORD_VARIANTS_EN
     return {k: (rng.choice(table[k]) if k in table else v) for k, v in swaps.items()}
@@ -371,6 +461,9 @@ def rewrite_free(text: str, strict: bool = False, seed: int = 0, lang: str = "au
         swaps = {**swaps, **extra_swaps}
         if lang != "tr":
             phrases = list(phrases) + EXTRA_PHRASE_SWAPS_EN
+
+    # Guarantee idempotency regardless of what the data tables contain.
+    swaps = _break_chains(swaps)
 
     if strict:
         # Only 1-word -> 1-word swaps are safe; multi-word replacements would
@@ -461,7 +554,7 @@ def rewrite_text(text: str, strict: bool = False, seed: int = 0, lang: str = "au
         word_swaps = {**word_swaps, **extra}
 
     if profile == "conservative":
-        selected = _pick_variants(word_swaps, random.Random(seed), lang)
+        selected = _break_chains(_pick_variants(word_swaps, random.Random(seed), lang))
 
         def transform(block: str) -> str:
             return _apply_word_swaps(block, selected, lang)

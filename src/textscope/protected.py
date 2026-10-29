@@ -23,11 +23,28 @@ _PROTECTED_RES = [
     ("front_matter", re.compile(r"\A---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?=\r?\n|\Z)")),
     ("html_comment", re.compile(r"<!--[\s\S]*?-->")),
     ("fence", re.compile(r"```[\s\S]*?```", re.MULTILINE)),
+    # Markdown also allows tilde fences. Both the opening and the closing fence
+    # are anchored to the start of a line, so a stray "~~~" inside prose cannot
+    # open a block and cannot pair with a later unrelated "~~~". Kept separate
+    # from the backtick pattern so the two fence styles never cross-pair.
+    ("fence_tilde", re.compile(
+        r"(?m)^ {0,3}~{3,}[^\n]*\n[\s\S]*?^ {0,3}~{3,}[ \t]*\r?$"
+    )),
     ("math_display", re.compile(r"\$\$[\s\S]*?\$\$")),
     ("math_bracket", re.compile(r"\\\[[\s\S]*?\\\]")),
     ("math_paren", re.compile(r"\\\([\s\S]*?\\\)", re.DOTALL)),
     ("math_inline", re.compile(r"(?<!\\)\$[^$\n]+?\$")),
     ("inline_code", re.compile(r"`[^`\n]+`")),
+    # Indented markdown code blocks: a run of lines each indented four spaces
+    # or one tab. The blank line (or document start) is required because
+    # without it every hard-wrapped continuation line would be frozen; list
+    # markers are excluded so "    - item" stays a list item, not code.
+    ("indented_code", re.compile(
+        r"(?m)(?:(?<=\n)[ \t]*\r?\n|\A)"
+        r"((?: {4}|\t)"
+        r"(?![ \t]*(?:[-*+]|\d+[.)])(?:[ \t]|$))"
+        r"[^\n]*(?:\r?\n|\Z))+"
+    )),
     # Last character must not be sentence punctuation, so the period after a URL
     # stays in the rewritable prose.
     ("url", re.compile(r"https?://[^\s)>\]]*[A-Za-z0-9/#_=~%-]")),
@@ -57,6 +74,48 @@ _PROTECTED_RES = [
     )),
     # HTML/XML tags (opening, closing, self-closing); escaped "\<" is not a tag.
     ("html_tag", re.compile(r"(?<!\\)</?[A-Za-z][A-Za-z0-9:_-]*(?:\s+[^<>]*)?/?>")),
+    # HTML entities require the closing ";" and a known shape, so a bare "&"
+    # in prose ("R&D") is left alone.
+    ("html_entity", re.compile(
+        r"&(?:[A-Za-z][A-Za-z0-9]{1,31}|#\d{1,7}|#[xX][0-9A-Fa-f]{1,6});"
+    )),
+    # Footnote definitions freeze the whole line; the inline marker only freezes
+    # "[^1]". The "^" keeps them distinct from numeric citation brackets.
+    ("footnote_def", re.compile(r"(?m)^[ \t]{0,3}\[\^[^\]\n]{1,64}\]:[^\n]*$")),
+    ("footnote_marker", re.compile(r"\[\^[^\]\n]{1,64}\]")),
+    # Markdown reference link definitions are a lone "[label]: destination" line.
+    ("md_ref_def", re.compile(
+        r"(?m)^[ \t]{0,3}\[[^\]\n]{1,128}\]:[ \t]*\S[^\n]*$"
+    )),
+    # DOI: "10." + 4-9 registrant digits + "/" + suffix. The suffix must end on
+    # an identifier character, so a sentence-final full stop stays prose.
+    ("doi", re.compile(r"\b10\.\d{4,9}/[^\s\"'<>]*[A-Za-z0-9/#_=-]")),
+    # ISBN-10 / ISBN-13, with or without an "ISBN"/"ISBN-13:" prefix.
+    ("isbn", re.compile(
+        r"\bISBN(?:-1[03])?:?[ \t]*(?:97[89][ -]?)?(?:\d[ -]?){9}[\dXx]\b"
+    )),
+    # arXiv identifiers, optionally versioned ("arXiv:2101.00001v2").
+    ("arxiv", re.compile(r"\barXiv:[ \t]*\d{4}\.\d{4,5}(?:v\d+)?\b", re.IGNORECASE)),
+    # Semantic versions need at least two dots and clean word boundaries, so
+    # "1.5" or a number glued to a word is not protected.
+    ("semver", re.compile(
+        r"\bv?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+        r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?![\w.])"
+    )),
+    # Emoji shortcodes must open and close a colon on word boundaries. Without
+    # the lookbehind a clock time such as "10:30:45" would look like ":30:".
+    ("emoji", re.compile(
+        r"(?<![A-Za-z0-9_]):[A-Za-z0-9_+-]{1,32}:(?![A-Za-z0-9_])"
+    )),
+    # Template placeholders. Each form is anchored to its own braces or dollar
+    # sign, so a lone "{" or "}" in ordinary prose is never protected.
+    ("template_var", re.compile(r"\{\{[ \t]*[^{}\n]{1,80}?[ \t]*\}\}")),
+    ("template_field", re.compile(r"\{[A-Za-z_][A-Za-z0-9_.-]{0,40}\}")),
+    ("template_env", re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}")),
+    # printf placeholders only ("%s", "%d", ...). The lookahead stops "%s" from
+    # matching inside a longer word, and a bare percentage such as "42%" stays
+    # prose; an escaped "\%" is never a placeholder.
+    ("printf_placeholder", re.compile(r"(?<!\\)%[sdifr](?![A-Za-z0-9_])")),
     ("number", re.compile(r"\b\d[\d,\.]*\b")),
 ]
 

@@ -7,14 +7,26 @@ import textscope.rules_en as rules
 TURKISH_CHARS = set("çğıöşüÇĞİÖŞÜ")
 
 
+# Vocabulary that carries technical meaning in statistics and measurement.
+# Swapping it changes what a methods section says, so the word tables must
+# leave these terms alone.
+PROTECTED_STATS_TERMS = frozenset({
+    "significant", "significantly", "correlation", "variable", "variables",
+    "qualitative", "quantitative", "empirical", "systematic",
+    "methodological", "construct", "intervention", "interventions",
+    "hypothesis", "sample", "coefficient", "regression", "p-value",
+    "effect size",
+})
+
+
 def test_minimum_table_sizes():
-    assert len(rules.WORD_SWAPS_EN) >= 400
-    assert len(rules.PHRASE_SWAPS_EN) >= 120
-    assert len(rules.LEADING_TRANSITIONS_EN) >= 60
-    assert len(rules.CONTRACTIONS_EN) >= 60
-    assert len(rules.WORD_VARIANTS_EN) >= 25
-    assert len(rules.EXTRA_WORD_SWAPS_EN) >= 40
-    assert len(rules.EXTRA_PHRASE_SWAPS_EN) >= 15
+    assert len(rules.WORD_SWAPS_EN) >= 1000
+    assert len(rules.PHRASE_SWAPS_EN) >= 300
+    assert len(rules.LEADING_TRANSITIONS_EN) >= 110
+    assert len(rules.CONTRACTIONS_EN) >= 75
+    assert len(rules.WORD_VARIANTS_EN) >= 45
+    assert len(rules.EXTRA_WORD_SWAPS_EN) >= 90
+    assert len(rules.EXTRA_PHRASE_SWAPS_EN) >= 35
 
 
 def test_no_duplicate_word_keys():
@@ -46,6 +58,30 @@ def test_keys_are_lowercase_and_stripped():
         assert key == key.strip(), key
     for key in rules.EXTRA_WORD_SWAPS_EN:
         assert key == key.lower(), key
+
+
+def test_replacements_are_clean_strings():
+    for table in (rules.WORD_SWAPS_EN, rules.EXTRA_WORD_SWAPS_EN):
+        for key, value in table.items():
+            assert value != "", f"empty replacement for {key!r}"
+            assert "  " not in value, f"double space in replacement for {key!r}"
+            assert value == value.strip(), f"untrimmed replacement for {key!r}"
+    phrase_tables = (
+        rules.PHRASE_SWAPS_EN,
+        rules.CONTRACTIONS_EN,
+        rules.EXTRA_PHRASE_SWAPS_EN,
+    )
+    for table in phrase_tables:
+        for pattern, replacement in table:
+            assert replacement != "", f"empty replacement for {pattern!r}"
+            assert "  " not in replacement, f"double space in {pattern!r}"
+            assert replacement == replacement.strip(), f"untrimmed {pattern!r}"
+
+
+def test_protected_stats_vocabulary_is_not_swapped():
+    for table in (rules.WORD_SWAPS_EN, rules.EXTRA_WORD_SWAPS_EN):
+        offenders = PROTECTED_STATS_TERMS & set(table)
+        assert offenders == set(), offenders
 
 
 def test_variants_reference_existing_keys():
@@ -84,8 +120,9 @@ def test_replacement_lists_are_pairs():
 
 def test_variant_values_are_not_swap_keys():
     """A variant that is itself a key creates non-idempotent chains."""
+    table = set(rules.WORD_SWAPS_EN) | set(rules.EXTRA_WORD_SWAPS_EN)
     offenders = {
-        key: [v for v in variants if v in rules.WORD_SWAPS_EN]
+        key: [v for v in variants if v in table]
         for key, variants in rules.WORD_VARIANTS_EN.items()
     }
     offenders = {k: v for k, v in offenders.items() if v}

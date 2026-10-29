@@ -12,10 +12,12 @@ Zero runtime dependencies. Python 3.10+. Managed with `uv`.
 - **clean**: purge zero-width/Cf characters, NFC normalize, fix ligatures, normalize whitespace, dashes and quotes.
 - **rewrite**: deterministic word/sentence-level rewrite. `--strict` keeps the word count exactly (delta = 0).
 - **Structure-safe**: line breaks, blank lines and paragraph layout survive; rewriting happens per line, never as a document-wide reflow.
-- **Protected zones**: code, math, `\cite{}`, URLs, numbers, string literals never change. SHA-256 verified before/after; on violation the write is aborted. LaTeX environments are matched with a stack, so nesting and `\begin{document}` work. Also protected: YAML front matter, markdown tables, HTML tags and comments, markdown link destinations, `[1]`/`[4-6]` citation markers, `(Smith et al., 2020)` author-year citations, LaTeX `%` comments (only at line start, so `42%` stays prose).
-- **English** (626 word swaps, 184 phrase swaps, 73 transitions, 65 contractions): `a/an` repair, irregular-verb agreement (`have shown`, not `have showed`), repeated-starter cleanup. Statistical terms (`significant`, `correlation`, `variable`, `qualitative`) are deliberately left alone so findings keep their meaning.
-- **Turkish** (213 word swaps, 141 phrase swaps, 54 transitions): suffix-aware verb softening (`-mektedir` → `-yor`, `-mıştır` → `-di`, `-acaktır` → `-acak`, `-malıdır` → `-malı`) with vowel harmony and t→d handling, plus light-verb phrase rules (`analiz edilmesini` → `incelenmesini`). Language detection works even on ASCII-only Turkish (`Bu calisma ...`).
+- **Protected zones**: code, math, `\cite{}`, URLs, numbers, string literals never change. SHA-256 verified before/after; on violation the write is aborted. LaTeX environments are matched with a stack, so nesting and `\begin{document}` work. Also protected: YAML front matter, markdown tables, HTML tags and comments, markdown link destinations, `[1]`/`[4-6]` citation markers, `(Smith et al., 2020)` author-year citations, LaTeX `%` comments (only at line start, so `42%` stays prose), tilde fences, indented code blocks, footnote markers, reference definitions, DOIs, ISBNs, arXiv IDs, semver, HTML entities, emoji shortcodes and template placeholders (`{{ var }}`, `${VAR}`, `%s`).
+- **English** (1 368 word swaps, 453 phrase swaps, 138 transitions, 84 contractions): `a/an` repair, irregular-verb agreement (`have shown`, not `have showed`), repeated-starter cleanup. Statistical terms (`significant`, `correlation`, `variable`, `qualitative`) are deliberately left alone so findings keep their meaning.
+- **Turkish** (558 word swaps, 317 phrase swaps, 120 transitions): suffix-aware verb softening (`-mektedir` → `-yor`, `-mıştır` → `-di`, `-acaktır` → `-acak`, `-malıdır` → `-malı`) with vowel harmony and t→d handling, plus light-verb phrase rules (`analiz edilmesini` → `incelenmesini`). Language detection works even on ASCII-only Turkish (`Bu calisma ...`).
+- **Idempotent**: rewriting an already-rewritten text is a no-op. Swap chains such as `framework -> structure -> shape` are broken at runtime, so repeated runs cannot drift.
 - **Rule data is testable**: rules live in `rules_en.py` / `rules_tr.py` as plain data, guarded by integrity tests (no duplicate keys, no no-op swaps, every regex compiles, no synonym chains, correct Turkish orthography).
+- **Quality gate**: `textscope.eval` rewrites a 27-sample bilingual corpus and checks protected zones, structure, word budget, artifacts, language, idempotency and sentence fragments — 216/216 must pass.
 - **Code files**: a character scanner rewrites only comments and docstrings — trailing comments included — and never touches strings, URLs with `#fragment`, or shebangs.
 - **CLI**: `clean | rewrite | check | serve`, `--dry-run`, `--diff`, `--json` report, `--seed` (variation), `--profile`.
 - **Metrics**: burstiness, type-token ratio, entropy, AI-pattern hit count.
@@ -155,9 +157,16 @@ uv sync --group dev
 uv run pytest
 ```
 
-101 tests covering the rewriter, protected zones, code-comment handling, and the
-rule-data integrity (duplicate keys, no-op swaps, regex compilation, synonym chains,
-Turkish orthography).
+147 tests covering the rewriter, protected zones, code-comment handling,
+idempotency, and rule-data integrity (duplicate keys, no-op swaps, regex
+compilation, synonym chains, Turkish orthography), plus a 27-sample bilingual
+quality gate.
+
+Run the quality gate on its own:
+
+```bash
+uv run python -c "from textscope.eval import evaluate, format_report; print(format_report(evaluate()))"
+```
 
 CI runs on Python 3.10–3.14 (see `.github/workflows/ci.yml`).
 
