@@ -75,12 +75,12 @@ goes to stdout. `--dry-run` checks everything and writes nothing.
 
 ```mermaid
 flowchart TD
-    A[Read input document] --> B[Split into protected spans and prose]
-    B --> C[Rewrite prose line by line]
-    C --> D[Reassemble document]
-    D --> E{Protected SHA-256 unchanged}
-    E -- yes --> F[Write file or stdout]
-    E -- no --> G[Abort with exit code 2]
+    A["Read input document"] --> B["Split into protected spans and prose"]
+    B --> C["Rewrite prose line by line"]
+    C --> D["Reassemble document"]
+    D --> E{"Protected spans and SHA-256 unchanged?"}
+    E -- yes --> F["Write file or stdout"]
+    E -- no --> G["Abort with exit code 2, write nothing"]
 ```
 
 The check runs for single `.txt`, `.md`, `.tex` and code files, and for `.docx` (against
