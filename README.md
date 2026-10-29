@@ -36,6 +36,24 @@ textscope rewrite input.txt -o out.txt
 # Strict: word count preserved exactly
 textscope rewrite input.txt --strict -o out.txt
 
+# Turkish
+textscope rewrite input.txt --lang tr -o out.txt
+
+# Profile
+textscope rewrite input.txt --profile aggressive -o out.txt
+
+# Optional LLM backend
+textscope rewrite input.txt --llm openai:gpt-4o-mini -o out.txt
+
+# In-place (backup .bak)
+textscope rewrite input.txt --in-place
+
+# HTTP server
+textscope serve --port 8765
+
+# External detector (needs GPTZERO_API_KEY)
+textscope detect out.txt
+
 # Inspect metrics
 textscope check out.txt
 
