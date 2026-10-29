@@ -24,14 +24,14 @@ from .rewrite import rewrite_text
 SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".tex", ".docx", ".zip"} | CODE_EXTS
 
 
-def _make_transform(cmd: str, strict: bool, seed: int):
+def _make_transform(cmd: str, strict: bool, seed: int, lang: str = 'auto', profile: str = 'balanced'):
     if cmd == "clean":
         def t(text):
             return clean_text(text)
         return t
     else:
         def t(text):
-            return rewrite_text(text, strict=strict, seed=seed)
+            return rewrite_text(text, strict=strict, seed=seed, lang=lang, profile=profile)
         return t
 
 
@@ -45,8 +45,9 @@ def _transform_text(path: str, text: str, transform, cmd: str, strict: bool, see
 
 
 def _process_file(input_path: str, output_path: str | None, cmd: str, strict: bool,
-                  seed: int, dry_run: bool, show_diff: bool, json_report: bool) -> dict:
-    transform = _make_transform(cmd, strict, seed)
+                  seed: int, dry_run: bool, show_diff: bool, json_report: bool,
+                  lang: str = 'auto', profile: str = 'balanced') -> dict:
+    transform = _make_transform(cmd, strict, seed, lang, profile)
     fmt = detect_format(input_path)
     result_info = {"file": input_path, "format": fmt}
 
@@ -130,7 +131,8 @@ def _default_output(input_path: str, cmd: str) -> str:
 
 
 def _process_directory(input_dir: str, output_dir: str | None, cmd: str, strict: bool,
-                       seed: int, dry_run: bool, show_diff: bool, json_report: bool) -> None:
+                       seed: int, dry_run: bool, show_diff: bool, json_report: bool,
+                       lang: str = 'auto', profile: str = 'balanced') -> None:
     in_root = Path(input_dir)
     out_root = Path(output_dir) if output_dir else None
     if out_root is None and not dry_run:
@@ -147,7 +149,7 @@ def _process_directory(input_dir: str, output_dir: str | None, cmd: str, strict:
             if out is not None:
                 out.parent.mkdir(parents=True, exist_ok=True)
             info = _process_file(str(p), str(out) if out else None, cmd, strict, seed,
-                                 dry_run, False, False)
+                                 dry_run, False, False, lang, profile)
             results.append(info)
     if json_report:
         print(json.dumps(results, indent=2, ensure_ascii=False))
@@ -189,6 +191,8 @@ def main(argv=None) -> int:
         sp.add_argument("--diff", action="store_true")
         sp.add_argument("--json", action="store_true", dest="json_report")
         sp.add_argument("--seed", type=int, default=0)
+        sp.add_argument("--lang", default="auto", choices=["auto", "en", "tr"], help="language")
+        sp.add_argument("--profile", default="balanced", choices=["conservative", "balanced", "aggressive"], help="rewrite profile")
         if name == "rewrite":
             sp.add_argument("--strict", action="store_true", help="preserve word count exactly")
 
@@ -206,10 +210,12 @@ def main(argv=None) -> int:
     input_path = args.input
     if os.path.isdir(input_path):
         _process_directory(input_path, args.output, args.cmd, strict, args.seed,
-                           args.dry_run, args.diff, args.json_report)
+                           args.dry_run, args.diff, args.json_report,
+                           getattr(args, 'lang', 'auto'), getattr(args, 'profile', 'balanced'))
     else:
         _process_file(input_path, args.output, args.cmd, strict, args.seed,
-                      args.dry_run, args.diff, args.json_report)
+                      args.dry_run, args.diff, args.json_report,
+                      getattr(args, 'lang', 'auto'), getattr(args, 'profile', 'balanced'))
     return 0
 
 
