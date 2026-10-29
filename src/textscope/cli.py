@@ -1,0 +1,211 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+from .clean import clean_text
+from .rewrite import rewrite_text
+from .protected import verify_protected, protected_hashes
+from .formats import (detect_format, process_code, process_docx_file, process_docx_bytes,
+                      process_zip_file, read_text_file, write_text_file, CODE_EXTS)
+from .metrics import report as metrics_report
+from .diff import unified_diff
+
+SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".tex", ".docx", ".zip"} | CODE_EXTS
+
+
+def _make_transform(cmd: str, strict: bool, seed: int):
+    if cmd == "clean":
+        def t(text):
+            return clean_text(text)
+        return t
+    else:
+        def t(text):
+            return rewrite_text(text, strict=strict, seed=seed)
+        return t
+
+
+def _transform_text(path: str, text: str, transform, cmd: str, strict: bool, seed: int) -> str:
+    fmt = detect_format(path)
+    if fmt == "code":
+        return process_code(text, transform)
+    if fmt in ("txt", "md", "tex"):
+        return transform(text)
+    return text
+
+
+def _process_file(input_path: str, output_path: str | None, cmd: str, strict: bool,
+                  seed: int, dry_run: bool, show_diff: bool, json_report: bool) -> dict:
+    transform = _make_transform(cmd, strict, seed)
+    fmt = detect_format(input_path)
+    result_info = {"file": input_path, "format": fmt}
+
+    if fmt == "docx":
+        with open(input_path, "rb") as f:
+            data = f.read()
+        # We need text-level transform for protected verification; read text not trivial.
+        # Process bytes.
+        new_data = process_docx_bytes(data, lambda t: transform(t) if False else t)
+        # Actually transform docx text nodes:
+        from .formats import _transform_xml_text_nodes
+        # redo properly:
+        new_data = process_docx_bytes(data, transform)
+        if not dry_run:
+            out = output_path or _default_output(input_path, cmd)
+            with open(out, "wb") as f:
+                f.write(new_data)
+            result_info["output"] = out
+        # metrics on extracted? skip
+        result_info["status"] = "ok"
+        return result_info
+
+    if fmt == "zip":
+        out = output_path or _default_output(input_path, cmd)
+        if not dry_run:
+            process_zip_file(input_path, out, transform, cmd)
+            result_info["output"] = out
+        result_info["status"] = "ok"
+        return result_info
+
+    # text/code
+    text = read_text_file(input_path)
+    new_text = _transform_text(input_path, text, transform, cmd, strict, seed)
+
+    # protected verification
+    ok, errors = verify_protected(text, new_text)
+    result_info["protected_ok"] = ok
+    result_info["protected_errors"] = errors
+    if cmd == "rewrite":
+        result_info["word_count_original"] = len(text.split())
+        result_info["word_count_result"] = len(new_text.split())
+        result_info["word_count_delta"] = len(new_text.split()) - len(text.split())
+    result_info["metrics_original"] = metrics_report(text)
+    result_info["metrics_result"] = metrics_report(new_text)
+
+    if not ok:
+        result_info["status"] = "aborted"
+        # do not write
+        if show_diff:
+            print(unified_diff(text, new_text, input_path))
+        if json_report:
+            print(json.dumps(result_info, indent=2, ensure_ascii=False))
+        print(f"ABORT: protected zone violation: {errors}", file=sys.stderr)
+        sys.exit(2)
+
+    if show_diff:
+        print(unified_diff(text, new_text, input_path))
+
+    if not dry_run:
+        out = output_path or None
+        if out:
+            if fmt == "code":
+                write_text_file(out, new_text)
+            else:
+                write_text_file(out, new_text)
+            result_info["output"] = out
+        else:
+            # stdout
+            sys.stdout.write(new_text)
+            if not new_text.endswith("\n"):
+                sys.stdout.write("\n")
+    result_info["status"] = "ok"
+    if json_report:
+        print(json.dumps(result_info, indent=2, ensure_ascii=False))
+    return result_info
+
+
+def _default_output(input_path: str, cmd: str) -> str:
+    p = Path(input_path)
+    suffix = ".cleaned" if cmd == "clean" else ".rewritten"
+    return str(p.with_name(p.stem + suffix + p.suffix))
+
+
+def _process_directory(input_dir: str, output_dir: str | None, cmd: str, strict: bool,
+                       seed: int, dry_run: bool, show_diff: bool, json_report: bool) -> None:
+    in_root = Path(input_dir)
+    out_root = Path(output_dir) if output_dir else None
+    if out_root is None and not dry_run:
+        print("directory processing requires -o OUTPUT_DIR", file=sys.stderr)
+        sys.exit(1)
+    results = []
+    for root, _, files in os.walk(in_root):
+        for fn in files:
+            p = Path(root) / fn
+            if p.suffix.lower() not in SUPPORTED_EXTS:
+                continue
+            rel = p.relative_to(in_root)
+            out = (out_root / rel) if out_root else None
+            if out is not None:
+                out.parent.mkdir(parents=True, exist_ok=True)
+            info = _process_file(str(p), str(out) if out else None, cmd, strict, seed,
+                                 dry_run, False, False)
+            results.append(info)
+    if json_report:
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+
+
+def _check_file(path: str, json_out: bool) -> None:
+    fmt = detect_format(path)
+    if fmt in ("docx", "zip"):
+        print(f"{path}: format {fmt} (metrics skipped for binary)", file=sys.stderr)
+        return
+    text = read_text_file(path)
+    m = metrics_report(text)
+    # AI-ish pattern counts
+    ai_patterns = ["delve", "tapestry", "moreover", "furthermore", "moreover",
+                   "in conclusion", "it is important to note", "plays a crucial role",
+                   "robust", "comprehensive", "leverage", "utilize"]
+    low = text.lower()
+    counts = {p: low.count(p) for p in ai_patterns}
+    ai_score = sum(counts.values())
+    info = {"file": path, "metrics": m, "ai_pattern_hits": counts, "ai_pattern_total": ai_score}
+    if json_out:
+        print(json.dumps(info, indent=2, ensure_ascii=False))
+    else:
+        print(f"== {path} ==")
+        for k, v in m.items():
+            print(f"  {k}: {v:.4f}" if isinstance(v, float) else f"  {k}: {v}")
+        print(f"  ai_pattern_total: {ai_score}")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="textscope", description="Clean & rewrite text for AI-detection evasion.")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    for name in ("clean", "rewrite"):
+        sp = sub.add_parser(name)
+        sp.add_argument("input", help="file, directory, or .zip")
+        sp.add_argument("-o", "--output", help="output file or directory")
+        sp.add_argument("--dry-run", action="store_true")
+        sp.add_argument("--diff", action="store_true")
+        sp.add_argument("--json", action="store_true", dest="json_report")
+        sp.add_argument("--seed", type=int, default=0)
+        if name == "rewrite":
+            sp.add_argument("--strict", action="store_true", help="preserve word count exactly")
+
+    csp = sub.add_parser("check")
+    csp.add_argument("input", help="file")
+    csp.add_argument("--json", action="store_true", dest="json_report")
+
+    args = parser.parse_args(argv)
+
+    if args.cmd == "check":
+        _check_file(args.input, args.json_report)
+        return 0
+
+    strict = getattr(args, "strict", False)
+    input_path = args.input
+    if os.path.isdir(input_path):
+        _process_directory(input_path, args.output, args.cmd, strict, args.seed,
+                           args.dry_run, args.diff, args.json_report)
+    else:
+        _process_file(input_path, args.output, args.cmd, strict, args.seed,
+                      args.dry_run, args.diff, args.json_report)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

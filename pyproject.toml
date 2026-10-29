@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "textscope-cli"
+version = "0.1.0"
+description = "Clean & rewrite text to evade AI detection while preserving protected zones (code, LaTeX, URLs, numbers)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Mehmet Efe Aytaş", email = "mehmetefeaytas@icloud.com" }]
+keywords = ["text", "ai-detection", "turnitin", "rewrite", "clean", "nlp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Text Processing",
+]
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+textscope = "textscope.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/mehmetefeaytas/textscope"
+Repository = "https://github.com/mehmetefeaytas/textscope"
+Issues = "https://github.com/mehmetefeaytas/textscope/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/textscope"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
