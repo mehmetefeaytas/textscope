@@ -37,7 +37,8 @@ class Handler(BaseHTTPRequestHandler):
             strict = bool(payload.get("strict", False))
             lang = payload.get("lang", "auto")
             profile = payload.get("profile", "balanced")
-            out = rewrite_text(text, strict=strict, lang=lang, profile=profile)
+            seed = int(payload.get("seed", 0))
+            out = rewrite_text(text, strict=strict, lang=lang, profile=profile, seed=seed)
             ok, errs = verify_protected(text, out)
             self._send(200, {"text": out, "protected_ok": ok, "protected_errors": errs,
                              "word_count_original": len(text.split()),

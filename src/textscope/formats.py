@@ -120,6 +120,28 @@ def _transform_xml_text_nodes(xml: str, transform: Callable[[str], str]) -> str:
     return xml
 
 
+def docx_text(data: bytes) -> str:
+    """Extract visible text from a .docx so protected zones can be verified."""
+    import html
+
+    try:
+        zin = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        return ""
+    try:
+        xml = zin.read("word/document.xml").decode("utf-8", errors="replace")
+    except KeyError:
+        return ""
+    finally:
+        zin.close()
+    paragraphs = []
+    for para in re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.DOTALL):
+        chunks = re.findall(r"<w:t[^>]*>(.*?)</w:t>", para, flags=re.DOTALL)
+        if chunks:
+            paragraphs.append(html.unescape("".join(chunks)))
+    return "\n".join(paragraphs)
+
+
 def process_docx_file(path: str, out_path: str, transform: Callable[[str], str]) -> None:
     with open(path, "rb") as f:
         data = f.read()

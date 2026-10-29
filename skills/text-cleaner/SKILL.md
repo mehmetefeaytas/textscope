@@ -36,11 +36,16 @@ To confirm a rewritten text passes Turnitin AI detection, run:
 
 1. `textscope rewrite input.txt --strict -o out.txt`
 2. `textscope check out.txt` — expect `ai_pattern_total` low and `burstiness_cv` >= 0.25.
-3. Verify protected zones: `textscope check` + manual diff (`--diff`).
+3. Verify protected zones: `textscope rewrite out.txt --dry-run --json` and check
+   `protected_ok == true` (the `check` command does not rewrite, so it cannot verify this).
 4. Paste `out.txt` into at least two independent AI detectors (e.g. ZeroGPT, GPTZero,
    Copyleaks) and record scores. Target: < 20% AI probability.
-5. If score too high, adjust `--seed`, re-run, re-test. Iterate until pass.
+5. If score too high, change `--seed`, try `--profile aggressive`, re-run, re-test.
 6. Never edit protected zones; abort if `protected_ok` is false.
+7. Read the output yourself. A green metric with broken grammar is a failure.
+
+These metrics are local proxies of AI-style writing. They are not a Turnitin verdict and
+passing them does not guarantee anything.
 
 ## Metrics targets
 

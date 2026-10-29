@@ -10,13 +10,14 @@ Validate that a textscope output passes AI detection.
 ## Steps
 
 1. Ensure `textscope` is installed (`uv pip install -e .`).
-2. Run `textscope check FILE --json` and capture metrics.
-3. Thresholds (fail if not met):
-   - burstiness_cv >= 0.25
-   - type_token_ratio >= 0.6
-   - ai_pattern_total <= 2
-   - protected_ok == true (run `textscope rewrite ... --diff` dry-run)
-4. Open ZeroGPT and GPTZero in browser; paste the file; record AI %.
-5. Pass criterion: AI % < 20 on both.
-6. If fail, try `--seed` 1..5 and `--strict`/non-strict; re-test.
-7. Report final scores and seed used.
+2. Run `textscope check FILE --json` and capture the local metrics.
+3. Run `textscope rewrite FILE --dry-run --json` and read `protected_ok`, `word_count_delta`.
+4. Thresholds (fail if not met) — these are **local proxies only**, not a Turnitin verdict:
+   - `burstiness_cv >= 0.25`
+   - `type_token_ratio >= 0.6`
+   - `ai_pattern_total <= 2` (count of known clichés, not a detector score)
+   - `protected_ok == true`
+5. Open ZeroGPT and GPTZero in a browser; paste the file; record AI %.
+6. If AI % >= 20, retry with `--seed 1..5`, `--profile aggressive` or `--strict` and re-test.
+7. Report every score, the seed and the profile used, plus a manual readability pass.
+   A low AI % with broken grammar is a failure, not a pass.

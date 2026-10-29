@@ -12,15 +12,22 @@ class Span:
     kind: str = "text"
 
 
+# Environments whose body is ordinary prose (so it must stay rewritable).
+# `document` is deliberately excluded: protecting it would freeze the whole file.
+_UNPROTECTED_ENVS = {"document"}
+
+_LATEX_ENV_TOKEN = re.compile(r"\\(begin|end)\{([^}]+)\}")
+
 _PROTECTED_RES = [
     ("fence", re.compile(r"```[\s\S]*?```", re.MULTILINE)),
-    ("latex_env", re.compile(r"\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}")),
     ("math_display", re.compile(r"\$\$[\s\S]*?\$\$")),
     ("math_bracket", re.compile(r"\\\[[\s\S]*?\\\]")),
     ("math_paren", re.compile(r"\\\([\s\S]*?\\\)", re.DOTALL)),
     ("math_inline", re.compile(r"(?<!\\)\$[^$\n]+?\$")),
     ("inline_code", re.compile(r"`[^`\n]+`")),
-    ("url", re.compile(r"https?://[^\s)>\]]+")),
+    # Last character must not be sentence punctuation, so the period after a URL
+    # stays in the rewritable prose.
+    ("url", re.compile(r"https?://[^\s)>\]]*[A-Za-z0-9/#_=~%-]")),
     ("email", re.compile(r"\b[\w.+-]+@[\w.-]+\.\w+\b")),
     ("latex_cmd", re.compile(
         r"\\(?:cite|citet|citep|ref|eqref|label|bibliography|includegraphics|input|include|usepackage|documentclass|begin|end|section|subsection|subsubsection|title|author|date|maketitle|newcommand|renewcommand|frac|sqrt|sum|int|lim|intertext|text|mathrm|mathbf|mathit|mathcal|left|right|Big|big|Bigg|bigg|times|cdot|ldots|cdots|dots|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|pi|omega|rho|phi|psi|tau|nu|xi|zeta|eta|kappa|upsilon|chi|iota|partial|nabla|infty|forall|exists|in|subset|subseteq|supset|supseteq|cup|cap|setminus|emptyset|varnothing|approx|neq|leq|geq|equiv|cong|sim|propto|to|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|mapsto|implies|iff|land|lor|neg|wedge|vee|cdot|times|div|pm|mp|circ|bullet|star|dagger|ddagger)\b(?:\[[^\]]*\])*(?:\{[^}]*\})*"
@@ -30,11 +37,37 @@ _PROTECTED_RES = [
 ]
 
 
+def _latex_env_spans(text: str) -> list[tuple[int, int]]:
+    """Match ``\\begin{env}`` … ``\\end{env}`` pairs with a stack.
+
+    A regex cannot do this correctly: a non-greedy pattern stops at the *first*
+    ``\\end{...}``, which turns ``\\begin{document}`` … ``\\end{equation}`` into one
+    giant "protected" block. Nesting is resolved by the stack instead.
+    """
+    spans: list[tuple[int, int]] = []
+    stack: list[tuple[str, int]] = []
+    for m in _LATEX_ENV_TOKEN.finditer(text):
+        kind, name = m.group(1), m.group(2)
+        if name in _UNPROTECTED_ENVS:
+            continue
+        if kind == "begin":
+            stack.append((name, m.start()))
+            continue
+        for i in range(len(stack) - 1, -1, -1):
+            if stack[i][0] == name:
+                spans.append((stack[i][1], m.end()))
+                del stack[i:]
+                break
+    return spans
+
+
 def split_protected(text: str) -> list[Span]:
     matches = []
     for kind, rx in _PROTECTED_RES:
         for m in rx.finditer(text):
             matches.append((m.start(), m.end(), kind, m.group(0)))
+    for start, end in _latex_env_spans(text):
+        matches.append((start, end, "latex_env", text[start:end]))
     if not matches:
         return [Span(text=text, protected=False, kind="text")] if text else []
     matches.sort(key=lambda x: (x[0], -(x[1] - x[0])))

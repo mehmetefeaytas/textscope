@@ -13,6 +13,7 @@ from .diff import unified_diff
 from .formats import (
     CODE_EXTS,
     detect_format,
+    docx_text,
     process_code,
     process_docx_bytes,
     process_zip_file,
@@ -63,18 +64,20 @@ def _process_file(input_path: str, output_path: str | None, cmd: str, strict: bo
     if fmt == "docx":
         with open(input_path, "rb") as f:
             data = f.read()
-        # We need text-level transform for protected verification; read text not trivial.
-        # Process bytes.
-        new_data = process_docx_bytes(data, lambda t: transform(t) if False else t)
-        # Actually transform docx text nodes:
-        # redo properly:
         new_data = process_docx_bytes(data, transform)
+        # Verify protected zones against the extracted text (same guarantee as txt).
+        ok, errors = verify_protected(docx_text(data), docx_text(new_data))
+        result_info["protected_ok"] = ok
+        result_info["protected_errors"] = errors
+        if not ok:
+            result_info["status"] = "aborted"
+            print(f"ABORT: protected zone violation: {errors}", file=sys.stderr)
+            sys.exit(2)
         if not dry_run:
             out = output_path or _default_output(input_path, cmd)
             with open(out, "wb") as f:
                 f.write(new_data)
             result_info["output"] = out
-        # metrics on extracted? skip
         result_info["status"] = "ok"
         return result_info
 
@@ -172,7 +175,7 @@ def _check_file(path: str, json_out: bool) -> None:
     text = read_text_file(path)
     m = metrics_report(text)
     # AI-ish pattern counts
-    ai_patterns = ["delve", "tapestry", "moreover", "furthermore", "moreover",
+    ai_patterns = ["delve", "tapestry", "moreover", "furthermore",
                    "in conclusion", "it is important to note", "plays a crucial role",
                    "robust", "comprehensive", "leverage", "utilize"]
     low = text.lower()
@@ -199,7 +202,7 @@ def main(argv=None) -> int:
         sp.add_argument("--dry-run", action="store_true")
         sp.add_argument("--diff", action="store_true")
         sp.add_argument("--json", action="store_true", dest="json_report")
-        sp.add_argument("--seed", type=int, default=0)
+        sp.add_argument("--seed", type=int, default=0, help="varyasyon tohumu: farklı seed = farklı çıktı (aynı seed = aynı çıktı)")
         sp.add_argument("--lang", default="auto", choices=["auto", "en", "tr"], help="language")
         sp.add_argument("--profile", default="balanced", choices=["conservative", "balanced", "aggressive"], help="rewrite profile")
         sp.add_argument("--in-place", action="store_true", help="overwrite input file")
@@ -232,6 +235,11 @@ def main(argv=None) -> int:
             print(json.dumps(res, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "serve":
+        from .server import serve as serve_http
+        serve_http(host=args.host, port=args.port)
         return 0
 
     strict = getattr(args, "strict", False)
